@@ -36,6 +36,7 @@ export function GameDetails() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [userBalance, setUserBalance] = useState<number>(0);
+  const [betStats, setBetStats] = useState({ total: 0, teamA: 0, teamB: 0 });
 
   const scoreRanges = [
     "1. Score 0 - 50",
@@ -122,6 +123,18 @@ export function GameDetails() {
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       setMatchBets(allBets);
+
+      // Calculate bet statistics
+      const total = allBets.reduce((sum, bet) => sum + Number(bet.bet_amount), 0);
+      let teamA = 0;
+      let teamB = 0;
+
+      if (game?.type === 'win') {
+        teamA = (winBets || []).filter(b => b.team === game.teama).reduce((sum, b) => sum + Number(b.bet_amount), 0);
+        teamB = (winBets || []).filter(b => b.team === game.teamb).reduce((sum, b) => sum + Number(b.bet_amount), 0);
+      }
+
+      setBetStats({ total, teamA, teamB });
     } catch (error) {
       console.error('Error fetching match bets:', error);
     } finally {
@@ -243,7 +256,51 @@ export function GameDetails() {
 
   return (
     <div className={`min-h-screen ${theme === 'dark' ? 'bg-[#0A1929]' : 'bg-gray-50'} py-12`}>
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Bet Statistics Cards */}
+        {!loading && game && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div className={`${theme === 'dark' ? 'bg-gradient-to-br from-[#0A2540] to-[#0D3158] border-[#1A3A5C]' : 'bg-white border-gray-200'} rounded-xl shadow-lg border p-6`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Total Bets</p>
+                  <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mt-1`}>₹{betStats.total.toFixed(2)}</p>
+                </div>
+                <div className={`${theme === 'dark' ? 'bg-[#1A8754]/20' : 'bg-[#1A8754]/10'} p-3 rounded-lg`}>
+                  <TrendingUp className="text-[#1A8754]" size={24} />
+                </div>
+              </div>
+            </div>
+
+            {game.type === 'win' && (
+              <>
+                <div className={`${theme === 'dark' ? 'bg-gradient-to-br from-[#0A2540] to-[#0D3158] border-[#1A3A5C]' : 'bg-white border-gray-200'} rounded-xl shadow-lg border p-6`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{game.teama}</p>
+                      <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mt-1`}>₹{betStats.teamA.toFixed(2)}</p>
+                    </div>
+                    <div className={`${theme === 'dark' ? 'bg-blue-500/20' : 'bg-blue-500/10'} p-3 rounded-lg`}>
+                      <Trophy className="text-blue-500" size={24} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className={`${theme === 'dark' ? 'bg-gradient-to-br from-[#0A2540] to-[#0D3158] border-[#1A3A5C]' : 'bg-white border-gray-200'} rounded-xl shadow-lg border p-6`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{game.teamb}</p>
+                      <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mt-1`}>₹{betStats.teamB.toFixed(2)}</p>
+                    </div>
+                    <div className={`${theme === 'dark' ? 'bg-[#F5B729]/20' : 'bg-[#F5B729]/10'} p-3 rounded-lg`}>
+                      <Trophy className="text-[#F5B729]" size={24} />
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
         <div className={`${theme === 'dark' ? 'bg-gradient-to-br from-[#0A2540] to-[#0D3158] border-[#1A3A5C]' : 'bg-white border-gray-200'} rounded-xl shadow-2xl border overflow-hidden`}>
           <div className={`${theme === 'dark' ? 'bg-[#1A3A5C]' : 'bg-gray-100'} p-6`}>
             <div className="flex items-center space-x-3 mb-4">
