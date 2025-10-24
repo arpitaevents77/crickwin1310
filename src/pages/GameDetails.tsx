@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Trophy, Target, AlertCircle, Users, TrendingUp } from 'lucide-react';
+import { Trophy, Target, AlertCircle, Users, TrendingUp, ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -55,8 +55,11 @@ export function GameDetails() {
   useEffect(() => {
     if (id) fetchGame();
     if (user) fetchUserBalance();
-    if (id) fetchMatchBets();
   }, [id, user]);
+
+  useEffect(() => {
+    if (id && game) fetchMatchBets();
+  }, [id, game]);
 
   async function fetchGame() {
     try {
@@ -76,65 +79,63 @@ export function GameDetails() {
   }
 
   async function fetchMatchBets() {
-    if (!id) return;
-    
+    if (!id || !game) return;
+
     try {
       setBetsLoading(true);
-      
-      // Fetch win game bets
-      const { data: winBets, error: winError } = await supabase
-        .from('win_game_bets')
-        .select(`
-          id,
-          user_id,
-          bet_amount,
-          status,
-          created_at,
-          team,
-          predicted_percentage,
-          user:users(name)
-        `)
-        .eq('game_id', id)
-        .order('created_at', { ascending: false });
 
-      // Fetch score prediction bets
-      const { data: scoreBets, error: scoreError } = await supabase
-        .from('score_prediction_bets')
-        .select(`
-          id,
-          user_id,
-          bet_amount,
-          status,
-          created_at,
-          team,
-          predicted_score,
-          user:users(name)
-        `)
-        .eq('game_id', id)
-        .order('created_at', { ascending: false });
+      if (game.type === 'win') {
+        // Fetch win game bets only
+        const { data: winBets, error: winError } = await supabase
+          .from('win_game_bets')
+          .select(`
+            id,
+            user_id,
+            bet_amount,
+            status,
+            created_at,
+            team,
+            predicted_percentage,
+            user:users(name)
+          `)
+          .eq('game_id', id)
+          .order('created_at', { ascending: false });
 
-      if (winError) throw winError;
-      if (scoreError) throw scoreError;
+        if (winError) throw winError;
 
-      // Combine and sort all bets
-      const allBets = [
-        ...(winBets || []).map(bet => ({ ...bet, type: 'win' })),
-        ...(scoreBets || []).map(bet => ({ ...bet, type: 'score' }))
-      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        setMatchBets((winBets || []).map(bet => ({ ...bet, type: 'win' })));
 
-      setMatchBets(allBets);
+        // Calculate bet statistics for win game
+        const total = (winBets || []).reduce((sum, bet) => sum + Number(bet.bet_amount), 0);
+        const teamA = (winBets || []).filter(b => b.team === game.teama).reduce((sum, b) => sum + Number(b.bet_amount), 0);
+        const teamB = (winBets || []).filter(b => b.team === game.teamb).reduce((sum, b) => sum + Number(b.bet_amount), 0);
 
-      // Calculate bet statistics
-      const total = allBets.reduce((sum, bet) => sum + Number(bet.bet_amount), 0);
-      let teamA = 0;
-      let teamB = 0;
+        setBetStats({ total, teamA, teamB });
+      } else {
+        // Fetch score prediction bets only
+        const { data: scoreBets, error: scoreError } = await supabase
+          .from('score_prediction_bets')
+          .select(`
+            id,
+            user_id,
+            bet_amount,
+            status,
+            created_at,
+            team,
+            predicted_score,
+            user:users(name)
+          `)
+          .eq('game_id', id)
+          .order('created_at', { ascending: false });
 
-      if (game?.type === 'win') {
-        teamA = (winBets || []).filter(b => b.team === game.teama).reduce((sum, b) => sum + Number(b.bet_amount), 0);
-        teamB = (winBets || []).filter(b => b.team === game.teamb).reduce((sum, b) => sum + Number(b.bet_amount), 0);
+        if (scoreError) throw scoreError;
+
+        setMatchBets((scoreBets || []).map(bet => ({ ...bet, type: 'score' })));
+
+        // Calculate bet statistics for score game
+        const total = (scoreBets || []).reduce((sum, bet) => sum + Number(bet.bet_amount), 0);
+        setBetStats({ total, teamA: 0, teamB: 0 });
       }
-
-      setBetStats({ total, teamA, teamB });
     } catch (error) {
       console.error('Error fetching match bets:', error);
     } finally {
@@ -257,6 +258,14 @@ export function GameDetails() {
   return (
     <div className={`min-h-screen ${theme === 'dark' ? 'bg-[#0A1929]' : 'bg-gray-50'} py-12`}>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Back Button */}
+        <button
+          onClick={() => navigate(-1)}
+          className={`flex items-center space-x-2 mb-6 ${theme === 'dark' ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'} transition-colors`}
+        >
+          <ArrowLeft size={20} />
+          <span className="font-medium">Back</span>
+        </button>
         {/* Bet Statistics Cards */}
         {!loading && game && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -446,7 +455,7 @@ export function GameDetails() {
             <div className="flex items-center space-x-3">
               <Users className="text-[#F5B729]" size={24} />
               <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                Match Bets ({matchBets.length})
+                {game.type === 'win' ? 'Match Winner Bets' : 'Score Prediction Bets'} ({matchBets.length})
               </h2>
             </div>
           </div>
